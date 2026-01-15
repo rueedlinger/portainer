@@ -1,0 +1,86 @@
+services:
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:lts
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "9443:9443"
+      - "8000:8000"  # Remove if not using Edge Agents
+    networks:
+      - portainer_network
+
+  proxy:
+    image: jc21/nginx-proxy-manager:2.13.5
+    container_name: proxy
+    restart: unless-stopped  
+    ports:
+      - "80:80"   # Public HTTP Port
+      - "443:443" # Public HTTPS Port
+      - "81:81"   # Admin Web Port
+    
+    environment:
+      TZ: "UTC"   
+      #HOSTNAMES: "proxy.internal"   
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    networks:
+      - portainer_network
+
+  dns-proxy:
+    image: defreitas/dns-proxy-server:latest
+    container_name: dns-proxy    
+    restart: unless-stopped
+    ports:
+      - "5380:5380"
+      - "5354:53/tcp"
+      - "5354:53/udp"
+    environment:      
+      TZ: "UTC"
+      HOSTNAMES: "dns1.internal,dns2.internal" # Optional custom hostnames for the DNS server
+      #MG_LOG_LEVEL: "DEBUG"     
+      MG_DOMAIN: "internal"
+      MG_REGISTER_CONTAINER_NAMES: "true"
+    networks:
+      - portainer_network
+      
+    
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/:/app/conf/
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:2.0.2
+    container_name: uptime-kuma    
+    restart: unless-stopped 
+    # Uncomment below lines if you want to expose port or persist data
+    # ports:
+    #   - "3001:3001"
+    # volumes:
+    #   - /path/to/data:/app/data   
+    environment:
+      TZ: "UTC"
+      #HOSTNAMES: "uptime-kuma.internal"
+    networks:
+      - portainer_network
+
+  dnstools:
+    image: infoblox/dnstools:latest
+    container_name: dnstools
+    restart: unless-stopped 
+    tty: true
+    stdin_open: true
+    entrypoint: /bin/sh
+    networks:
+      - portainer_network
+   
+
+volumes:
+  portainer_data:
+
+networks:
+  portainer_network:
+    driver: bridge
