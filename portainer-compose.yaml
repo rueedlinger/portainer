@@ -67,17 +67,16 @@ services:
     networks:
       - portainer_network
 
-  dnstools:
-    image: infoblox/dnstools:latest
-    container_name: dnstools
-    restart: unless-stopped 
-    tty: true
-    stdin_open: true
-    entrypoint: /bin/sh
-    networks:
-      - portainer_network
+  #dnstools:
+  #  image: infoblox/dnstools:latest
+  #  container_name: dnstools
+  #  restart: unless-stopped 
+  #  tty: true
+  #  stdin_open: true
+  #  entrypoint: /bin/sh
+  #  networks:
+  #    - portainer_network
    
-
 volumes:
   portainer_data:
 
