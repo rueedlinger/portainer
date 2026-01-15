@@ -1,4 +1,4 @@
-# portainer
+# Portainer
 
 This repository contains a Docker Compose setup for Portainer, a lightweight management UI that allows you to easily manage your Docker environments. That can be used inside a home lab or small server environment, like Proxmox VE.
 
@@ -7,6 +7,72 @@ This repository contains a Docker Compose setup for Portainer, a lightweight man
 - Nginx Proxy Manager for managing proxy hosts
 - DNS Proxy for local domain resolution 
 - Uptime Kuma for monitoring services
+
+
+## Diagram
+- The DNS Proxy automatically creates DNS entries *.internal for all containers and *.portal for external access. The external access must be configure manually over the dns-proxy admin interface.
+- The Reverse Proxy (Nginx Proxy Manager) forwards can the for example forward the reuqest uptime.kuma.poratiner to the Uptime-Kuma (uptime-kuma.intl) container.
+
+```
+                     ┌──────────────────────┐
+                     │         HOST         │
+                     │     192.168.1.50     │
+                     │  (Access from LAN).  │
+                     └──────────────┬───────┘
+                                    │
+                                    │
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+        ▼                           ▼                           ▼
+┌───────────────┐           ┌──────────────-─┐           ┌────────────────┐
+│ Portainer     │           │ DNS Proxy      │           │ Reverse Proxy  │
+│ portainer.intl│           │ dns-proxy.intl │           │ proxy.internal │
+│ 9443:9443     │           │ 5380:5380      │           │ 80:80          │
+│               │           │ 5354:53 TCP/UDP│           │ 443:443        │
+└───────────────┘           └──────────────-─┘           │ 81:81 Admin    │
+                                                         └─────┬──────────┘
+                                                               │
+                                                               ▼
+                                                    ┌───────────────-─┐
+                                                    │ Uptime-Kuma     │
+                                                    │ uptime-kuma.intl│
+                                                    │ (default port)  │
+                                                    └───────────────-─┘
+
+```
+
+
+
+### DNS Proxy
+The DNS Proxy service is configured to resolve specific local domains to designated IP addresses. This is particularly useful for accessing services running in Docker containers using friendly domain names.
+
+> __Note:__ I had to use the latest image because the previous one was not working > with the docker version 29.x.x
+
+```yaml
+  dns-proxy:
+    image: defreitas/dns-proxy-server:latest
+    container_name: dns-proxy    
+    restart: unless-stopped
+    ports:
+      - "5380:5380"
+      - "5354:53/tcp"
+      - "5354:53/udp"
+    environment:      
+      TZ: "UTC"
+      HOSTNAMES: "dns1.internal,dns2.internal" # Optional custom hostnames for the DNS server
+      #MG_LOG_LEVEL: "DEBUG"     
+      MG_DOMAIN: "internal"
+      MG_REGISTER_CONTAINER_NAMES: "true"
+    networks:
+      - portainer_network
+```
+
+
+The option `MG_DOMAIN` and `MG_REGISTER_CONTAINER_NAMES` set to true allows the DNS Proxy to automatically register Docker container names under the specified domain. For example, if you have a container named `proxy` running, it can be accessed via `proxy.internal`.
+
+From the host the DNS port can be accessed on port 5354 (both TCP and UDP). You can configure your system or other devices to use this DNS server for resolving local domains.
+
+On the
 
 ## Example
 To test the DNS resolution for the local domain `proxy.local`, you can use the `dig` command as follows:
