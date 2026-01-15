@@ -10,8 +10,9 @@ This repository contains a Docker Compose setup for Portainer, a lightweight man
 
 
 ## Diagram
-- The DNS Proxy automatically creates DNS entries *.internal for all containers and *.portal for external access. The external access must be configure manually over the dns-proxy admin interface.
-- The Reverse Proxy (Nginx Proxy Manager) forwards can the for example forward the reuqest uptime.kuma.poratiner to the Uptime-Kuma (uptime-kuma.intl) container.
+- The DNS Proxy manages DNS entries `*.internal` for all containers and `*.portal` for external access. The internal DNS entries are automatically created. External access must be configured manually through the DNS Proxy admin interface.  
+- The Reverse Proxy (Nginx Proxy Manager) can be configured to forward external requests (ports 80/443) from `*.portal` to the corresponding containers. For example, `uptime.kuma.portal` can be forwarded to `uptime-kuma.internal`.
+
 
 ```
                      ┌──────────────────────┐
@@ -44,7 +45,7 @@ This repository contains a Docker Compose setup for Portainer, a lightweight man
 
 
 ### DNS Proxy
-The DNS Proxy service is configured to resolve specific local domains to designated IP addresses. This is particularly useful for accessing services running in Docker containers using friendly domain names.
+The DNS Proxy service (DPS) is configured to resolve specific local domains to designated IP addresses. This is particularly useful for accessing services running in Docker containers using friendly domain names.
 
 > __Note:__ I had to use the latest image because the previous one was not working > with the docker version 29.x.x
 
@@ -72,107 +73,29 @@ The option `MG_DOMAIN` and `MG_REGISTER_CONTAINER_NAMES` set to true allows the 
 
 From the host the DNS port can be accessed on port 5354 (both TCP and UDP). You can configure your system or other devices to use this DNS server for resolving local domains.
 
-On the
+To set a custom DNS entry you can set the environment variable `HOSTNAMES: "foo1.internal, foo2.internal"`.
 
-## Example
-To test the DNS resolution for the local domain `proxy.local`, you can use the `dig` command as follows:
+### Nginx Proxy Manager
+Nginx Proxy Manager is set up to manage reverse proxy configurations for your Docker containers. It provides a user-friendly web interface to create and manage proxy hosts, SSL certificates, and other related settings.
 
-```bash
-dig @127.0.0.1 -p 53 proxy.local
+Over the Port 81 web interface, you can create proxy hosts that forward requests from external domains (e.g., `service.portal`) to the corresponding internal Docker containers (e.g., `service.internal`).
 
-; (1 server found)
-;; global options: +cmd
-;; Got answer:
-;; WARNING: .local is reserved for Multicast DNS
-;; You are currently testing what happens when an mDNS query is leaked to DNS
-;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 29213
-;; flags: qr rd ra ad; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
-
-;; OPT PSEUDOSECTION:
-; EDNS: version: 0, flags:; udp: 4096
-;; QUESTION SECTION:
-;proxy.local.			IN	A
-
-;; ANSWER SECTION:
-proxy.local.		30	IN	A	172.20.0.3
-
-;; Query time: 80 msec
-;; SERVER: 127.0.0.1#53(127.0.0.1)
-;; WHEN: Tue Jan 13 23:43:18 CET 2026
-;; MSG SIZE  rcvd: 56
-```
-
-Test the custom dns entry for portainer.docker:
-
-```bash
-@127.0.0.1 -p 53 api.portainer.docker
-; (1 server found)
-;; global options: +cmd
-;; Got answer:
-;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 16325
-;; flags: qr rd ra ad; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
-
-;; OPT PSEUDOSECTION:
-; EDNS: version: 0, flags:; udp: 4096
-;; QUESTION SECTION:
-;api.portainer.docker.		IN	A
-
-;; ANSWER SECTION:
-api.portainer.docker.	255	IN	A	192.168.0.1
-
-;; Query time: 48 msec
-;; SERVER: 127.0.0.1#53(127.0.0.1)
-;; WHEN: Wed Jan 14 00:20:03 CET 2026
-;; MSG SIZE  rcvd: 65
-```
+### Setup Host DNS
+To use the DNS Proxy for local domain resolution, you need to configure your host system to use the DNS Proxy server. This can typically be done by adding the HOST's IP address (e.g., 192.168.1.59:5354) as a DNS server in your network settings.
 
 
-## Configure Proxmox VE
-tbd
+#### Example /etc/systemd/resolved.conf 
 
-https://docs.docker.com/engine/install/ubuntu/
-```
-# Add Docker's official GPG key:
-sudo apt update
-sudo apt install ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
+- DNS=127.0.0.1:5354 → Use local DNS server on port 5354.
+- Domains=~internal ~portainer → Send queries for internal and portainer domains only to that local DNS.
+- FallbackDNS=8.8.8.8 → All other queries go to Google DNS if local DNS can’t resolve them.
 
-# Add the repository to Apt sources:
-sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/ubuntu
-Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
-Components: stable
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-
-sudo apt update
-````
+Essentially, it’s a split DNS setup: local DNS for internal domains, public DNS for everything else.
 
 ```
-sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-```
-sudo systemctl status docker
-
-sudo systemctl start docker
-
-sudo docker run hello-world
-````
-
-```
-sudo docker compose -f portainer-compose.yaml up -d
-```
-
-
-sudo vim /etc/systemd/resolved.conf 
-
 [Resolve]
-DNS=127.0.0.1
-Domains=~docker
-DNSStubListener=no
+DNS=127.0.0.1:5354
+Domains=~internal ~portainer
+FallbackDNS=8.8.8.8
+```
 
-sudo systemctl restart systemd-resolved
