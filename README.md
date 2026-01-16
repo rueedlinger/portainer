@@ -44,14 +44,14 @@ The golal is to have a Proxmox VE host running with a static IP address on your 
 
 
 
-## Setup Overview
+# Setup Overview
 
 The folloiwng setps will be covered in the next sections:
 1. Proxmox VE Setup
 2. Create Virtual Machine for Docker Containers
 3. Docker Compose Setup
 
-### Proxmox VE Setup
+## Proxmox VE Setup
 Here is a basic overview of the Proxmox VE setup, for a detailed installation guide, please refer to the [Proxmox VE Installation Guide](https://pve.proxmox.com/wiki/Installation) or [Proxmox Beginner’s Guide: Everything You Need to Get Started (YouTube)](https://www.youtube.com/watch?v=lFzWDJcRsqo) by WunderTech.
 
 - Download Proxmox VE from [here](https://www.proxmox.com/en/downloads/category/iso-images-pve) and install it on your server hardware.
@@ -61,7 +61,7 @@ Here is a basic overview of the Proxmox VE setup, for a detailed installation gu
   - Next run the [`post-pve-install`](https://community-scripts.github.io/ProxmoxVE/scripts?id=post-pve-install) script to automate post-installation tasks.
 
 
-### Create Virtual Machine for Docker Containers
+## Create Virtual Machine for Docker Containers
 
 Follow these steps to create a virtual machine (VM) in Proxmox VE that will host the Docker containers:
 - In this example we will use a fully virtualized machine (VM) to host the Docker containers setup.
@@ -71,16 +71,65 @@ Follow these steps to create a virtual machine (VM) in Proxmox VE that will host
     - Mount the ISO to the VM and start the installation process.
     - Follow the installation prompts to set up the OS.
 
+### Install Docker and Docker Compose
+  After the installation is complete, log in to the VM and install Docker and Docker Compose.
+  Install Docker by following the official Docker installation guide for Ubuntu: [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
+```bash
+  # Add Docker's official GPG key:
+sudo apt update
+sudo apt install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
 
+# Add the repository to Apt sources:
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
 
+sudo apt update
+```
+
+Install the Docker packages.
+
+```bash
+sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+### Configure DNS Resolver
+To use the DNS Proxy later, we need to configure the DNS resolver on the VM to use the DNS Proxy service. Edit the `/etc/systemd/resolved.conf` file and add the following lines:
+
+```
+[Resolve]
+DNS=127.0.0.1:5354
+Domains=~docker ~internal ~portainer
+FallbackDNS=192.168.1.1
+```
+
+- DNS=127.0.0.1:5354 → Use local DNS server on port 5354.
+- Domains=~internal ~portainer → Send queries for internal and portainer domains only to that local DNS.
+- FallbackDNS=192.168.1.1 → All other queries go to the local DNS if local DNS can’t resolve them.
+
+Essentially, it’s a split DNS setup: local DNS for internal domains, public DNS for everything else.
+
+After that restart the `systemd-resolved` service to apply the changes:
+```bash
+sudo systemctl restart systemd-resolved
+```
+
+  
 ### Docker Compose Setup
 
 #### Conatiners
 The Docker Compose setup includes the following services:
-- Portainer for Docker management
-- Nginx Proxy Manager for managing proxy hosts
-- DNS Proxy for local domain resolution 
+- Portainer for Docker management.
+- Nginx Proxy Manager for managing proxy hosts for example to act as a reverse proxy.
+- DNS Proxy for domain resolution of local Docker containers and managing static DNS entries.
 - Uptime Kuma for monitoring services
 
 #### Architecture
