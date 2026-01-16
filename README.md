@@ -1,15 +1,90 @@
-# Portainer
+# Home Lab Setup with Portainer and Proxmox VE
 
-This repository contains a Docker Compose setup for Portainer, a lightweight management UI that allows you to easily manage your Docker environments. That can be used inside a home lab or small server environment, like Proxmox VE.
+In this article we will describe how to set up a Docker environment using [Portainer](https://www.portainer.io/) and [Proxmox VE](https://www.proxmox.com/en/proxmox-ve) for a simple home lab setup.
 
-## Features
+The main idea is to have a Proxmox VE host running a single VM that hosts the Docker containers. The VM is connected to the local network via a virtual bridge. The Docker containers are managed using Portainer, and a DNS Proxy is used for local domain resolution with domain `.interal` and for external DNS resolution to the Docker containers with domains `.portainer`. Additionally, Nginx Proxy Manager is used as a reverse proxy to manage external access to the services running in the Docker containers.
+
+> __Note__: This setup is intended for educational purposes and may require adjustments based on your specific hardware and network configuration. 
+
+The golal is to have a Proxmox VE host running with a static IP address on your local network, ready to create virtual machines. Below is a simplified diagram of the setup:
+
+```
+                     Local Network (192.168.1.0/24)
+        ───────────────────────────────────────────────────
+
+                 +--------------------------------+
+                 |        Proxmox VE Host         |
+                 |--------------------------------|
+                 |  Management Interface          |
+                 |  IP: 192.168.1.10              |
+                 |                                |
+                 |  +--------------------------+  |
+                 |  |        VM Lab            |  |
+                 |  |--------------------------|  |
+                 |  |  Guest OS / Services     |  |
+                 |  |  IP: 192.168.1.50        |  |
+                 |  +--------------------------+  |
+                 |                                |
+                 +--------------------------------+
+                              |
+                              |
+                        Virtual Bridge (vmbr0)
+                              |
+                              |
+                   +----------v-----------+
+                   |   Router 192.168.1.1 |
+                   |  (Gateway, DNS, DHCP)|
+                   +----------+-----------+
+                              |
+                              |
+                   +----------v-----------+
+                   |      Internet        |
+                   +----------+-----------+
+```
+
+
+
+## Setup Overview
+
+The folloiwng setps will be covered in the next sections:
+1. Proxmox VE Setup
+2. Create Virtual Machine for Docker Containers
+3. Docker Compose Setup
+
+### Proxmox VE Setup
+Here is a basic overview of the Proxmox VE setup, for a detailed installation guide, please refer to the [Proxmox VE Installation Guide](https://pve.proxmox.com/wiki/Installation) or [Proxmox Beginner’s Guide: Everything You Need to Get Started (YouTube)](https://www.youtube.com/watch?v=lFzWDJcRsqo) by WunderTech.
+
+- Download Proxmox VE from [here](https://www.proxmox.com/en/downloads/category/iso-images-pve) and install it on your server hardware.
+- Install from USB
+  - set static IP for Proxmox host. Make sure to make DHCP reservations for the Proxmox host IP when your host network uses DHCP to avoid IP conflicts between.
+  - After the installation was complete access Proxmox web interface `https://<proxmox-ip>:8006` from your web browser.
+  - Next run the [`post-pve-install`](https://community-scripts.github.io/ProxmoxVE/scripts?id=post-pve-install) script to automate post-installation tasks.
+
+
+### Create Virtual Machine for Docker Containers
+
+Follow these steps to create a virtual machine (VM) in Proxmox VE that will host the Docker containers:
+- In this example we will use a fully virtualized machine (VM) to host the Docker containers setup.
+- Create a new VM in Proxmox VE with the desired specifications (CPU, RAM, Disk).
+- Install a Ubuntu Server on the VM.
+    - Download the Ubuntu Server ISO from [here](https://ubuntu.com/download/server) and upload it to Proxmox VE.
+    - Mount the ISO to the VM and start the installation process.
+    - Follow the installation prompts to set up the OS.
+
+
+
+
+### Docker Compose Setup
+
+#### Conatiners
+The Docker Compose setup includes the following services:
 - Portainer for Docker management
 - Nginx Proxy Manager for managing proxy hosts
 - DNS Proxy for local domain resolution 
 - Uptime Kuma for monitoring services
 
-
-## Diagram
+#### Architecture
+The setup consists of the following components:
 - The DNS Proxy manages DNS entries `*.internal` for all containers and `*.portal` for external access. The internal DNS entries are automatically created. External access must be configured manually through the DNS Proxy admin interface.  
 - The Reverse Proxy (Nginx Proxy Manager) can be configured to forward external requests (ports 80/443) from `*.portal` to the corresponding containers. For example, `uptime.kuma.portal` can be forwarded to `uptime-kuma.internal`.
 
