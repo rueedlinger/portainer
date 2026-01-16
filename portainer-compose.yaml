@@ -7,31 +7,31 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
-      - "9443:9443"
-      - "8000:8000"  # Remove if not using Edge Agents
+      - "9443:9443" # Portainer HTTPS. Remove if you want to use a reverse proxy.
+      - "9000:9000" # Portainer HTTP. 
+     # - "8000:8000"  # Remove if not using Edge Agents
     networks:
       - portainer_network
 
-  proxy:
+  reverse-proxy:
     image: jc21/nginx-proxy-manager:2.13.5
-    container_name: proxy
+    container_name: reverse-proxy
     restart: unless-stopped  
     ports:
       - "80:80"   # Public HTTP Port
       - "443:443" # Public HTTPS Port
-      - "81:81"   # Admin Web Port
-    
+      - "81:81"   # Admin Web Port    
     environment:
       TZ: "UTC"   
-      #HOSTNAMES: "proxy.internal"   
+      #HOSTNAMES: "reverse-proxy.internal"       
     volumes:
       - ./data:/data
       - ./letsencrypt:/etc/letsencrypt
     networks:
       - portainer_network
 
-  dns-proxy:
-    image: defreitas/dns-proxy-server:latest
+  dns-proxy:    
+    image: defreitas/dns-proxy-server:4.0.0
     container_name: dns-proxy    
     restart: unless-stopped
     ports:
@@ -40,14 +40,12 @@ services:
       - "5354:53/udp"
     environment:      
       TZ: "UTC"
-      HOSTNAMES: "dns1.internal,dns2.internal" # Optional custom hostnames for the DNS server
+      HOSTNAMES: "dns1.svc,dns2.svc" # Optional custom hostnames for the DNS server
       #MG_LOG_LEVEL: "DEBUG"     
-      MG_DOMAIN: "internal"
+      MG_DOMAIN: "svc"
       MG_REGISTER_CONTAINER_NAMES: "true"
     networks:
       - portainer_network
-      
-    
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config/:/app/conf/

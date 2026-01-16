@@ -1,2 +1,4 @@
 data/
 letsencrypt/
+
+.DS_Store

@@ -1,0 +1,84 @@
+@startuml
+title Docker
+left to right direction
+
+' -----------------------
+' Styling
+' -----------------------
+' -----------------------
+' Styling
+' -----------------------
+skinparam node {
+  BackgroundColor<<container>> #FFF9C4
+  BorderColor #BDB76B
+  FontColor #000000
+
+  BackgroundColor<<exposed>> #FFEBEE
+  BorderColor<<exposed>> #C62828
+  FontColor<<exposed>> #000000
+
+  BackgroundColor<<internal>> #BBDEFB
+  BorderColor<<internal>> #1E88E5
+  FontColor<<internal>> #000000
+}
+
+
+node "External Access from LAN" as Host
+
+
+node "Network" as Network {
+
+  node "Reverse Proxy" <<container>> as ReverseProxyNode {
+      node "HTTP:80" <<internal>> as RP_HTTP_internal
+      node "HTTPS:443" <<internal>> as RP_HTTPS_internal
+      node "Admin:81" <<internal>> as RP_Admin_internal
+  
+      node "HTTP:80" <<exposed>> as RP_HTTP_exposed
+      node "HTTPS:443" <<exposed>> as RP_HTTPS_exposed
+      node "Admin:81" <<exposed>> as RP_Admin_exposed
+  }
+  
+  node "Portainer" <<container>> as PortainerNode {
+      node "HTTPS:9443" <<internal>> as Portainer_HTTPS_internal
+      node "HTTPS:9443" <<exposed>> as Portainer_HTTPS_exposed
+      node "HTTP:9000" <<internal>> as Portainer_HTTP_internal
+  }
+  
+  node "DNS Proxy" <<container>> as DNSProxyNode {
+      node "DNS_TCP:53" <<internal>> as DNS_TCP_53_internal
+      node "DNS_UDP:53" <<internal>> as DNS_UDP_53_internal
+      node "Web:5380" <<internal>> as DNS_Web_internal
+  
+      node "DNS_TCP:5453" <<exposed>> as DNS_TCP_5453_exposed
+      node "DNS_UDP:5453" <<exposed>> as DNS_UDP_5453_exposed
+  }
+  
+
+  node "Uptime Kuma" <<container>> as KumaNode {
+      node "Web:3001" <<internal>> as Kuma_Web_internal
+  }
+}
+
+
+Portainer_HTTPS_exposed --> Portainer_HTTPS_internal
+
+DNS_UDP_5453_exposed  --> DNS_UDP_53_internal
+DNS_TCP_5453_exposed --> DNS_TCP_53_internal
+
+RP_HTTPS_exposed --> RP_HTTPS_internal
+RP_HTTP_exposed --> RP_HTTP_internal
+RP_Admin_exposed --> RP_Admin_internal
+
+Host --> Portainer_HTTPS_exposed
+Host --> RP_HTTP_exposed
+Host --> RP_HTTPS_exposed
+Host --> RP_Admin_exposed
+Host --> DNS_TCP_5453_exposed
+Host --> DNS_UDP_5453_exposed
+
+RP_HTTPS_internal --> Kuma_Web_internal
+RP_HTTPS_internal --> DNS_Web_internal
+
+
+
+@enduml
